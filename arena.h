@@ -81,9 +81,9 @@ void *arena_push(Arena *a, size_t size)
 
     while (a->used + total > a->commited) 
     {
-        assert(a->commited + a.commit_chunk <= a->reserved && "Arena out of reserved space");
-        os_commit(a->memory + a->commited, a.commit_chunk;
-        a->commited += a.commit_chunk;
+        assert(a->commited + a->commit_chunk <= a->reserved && "Arena out of reserved space");
+        os_commit(a->memory + a->commited, a->commit_chunk);
+        a->commited += a->commit_chunk;
     }
 
     ptr = a->memory + a->used + padding;
@@ -95,10 +95,7 @@ void *arena_push(Arena *a, size_t size)
 
 void *arena_push_zero(Arena *a, size_t size)
 {
-<<<<<<< HEAD
     size_t new_commit;
-=======
->>>>>>> 5d4ee7b (added commit chunk arg in arena_create func)
     size_t align = 16;
     size_t padding = (~a->used + 1) & (align -  1);
     size_t total = size + padding;
@@ -106,16 +103,13 @@ void *arena_push_zero(Arena *a, size_t size)
 
     while (a->used + total > a->commited) 
     {
-<<<<<<< HEAD
-        new_commit = a->commited + COMMIT_CHUNK;
+        new_commit = a->commited + a->commit_chunk;
         assert(new_commit <= a->reserved && "Arena out of reserved space");
         os_commit(a->memory, new_commit);
         a->commited = new_commit;
-=======
-        assert(a->commited + a.commit_chunk <= a->reserved && "Arena out of reserved space");
-        os_commit(a->memory + a->commited, a.commit_chunk);
-        a->commited += a.commit_chunk;
->>>>>>> 5d4ee7b (added commit chunk arg in arena_create func)
+        assert(a->commited + a->commit_chunk <= a->reserved && "Arena out of reserved space");
+        os_commit(a->memory + a->commited, a->commit_chunk);
+        a->commited += a->commit_chunk;
     }
 
     ptr = a->memory + a->used + padding;
@@ -164,11 +158,7 @@ char *arena_push_strf(Arena *a, const char *cstr, ...)
     size_t len = vsnprintf(NULL, 0, cstr, args);
     va_end(args);
 
-<<<<<<< HEAD
-    char *data = aren_push_array(a, char, len+1);
-=======
     char *data = arena_push_array(a, char, len+1);
->>>>>>> 5d4ee7b (added commit chunk arg in arena_create func)
     va_start(args, cstr);
     vsnprintf(data, len + 1, cstr, args);
     va_end(args);

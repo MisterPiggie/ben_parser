@@ -8,17 +8,11 @@
 
 
 
-BEN_parser *BEN_init_parser(Arena *arena, const char *file_path)
+BEN_parser *BEN_init_parser_from_file(Arena *arena, const char *file_path)
 {
     FILE *fp;
     size_t bytes_read;
     long size;
-
-    fp = fopen(file_path, "rb");
-    if (!fp)
-    {
-        return NULL;
-    }
 
     BEN_parser *parser = arena_push_struct(arena, BEN_parser);
     parser->arena = arena;
@@ -27,13 +21,22 @@ BEN_parser *BEN_init_parser(Arena *arena, const char *file_path)
     parser->cursor = 0;
     parser->err = 0;
 
+
+    fp = fopen(file_path, "rb");
+    if (!fp)
+    {
+        parser->err = -1;
+        return parser;
+    }
+
     fseek(fp, 0, SEEK_END);
 
     size = ftell(fp);
     if (size < 0)
     {
         fclose(fp);
-        return NULL;
+        parser->err = -1;
+        return parser;
     }
     parser->size = (size_t)size;
 
@@ -42,14 +45,55 @@ BEN_parser *BEN_init_parser(Arena *arena, const char *file_path)
     parser->data = arena_push_array(arena, unsigned char, parser->size);
 
     bytes_read = fread(parser->data, sizeof(unsigned char), parser->size, fp);
-    if (bytes_read != parser->size)
-    {
-        fclose(fp);
-        return NULL;
-    }
     fclose(fp);
 
+    if (bytes_read != parser->size)
+        parser->err = -1;
+
     return parser;
+}
+
+BEN_parser *BEN_init_parser_from_buffer(Arena *arena, const unsigned char *data, size_t len)
+{
+    BEN_parser *parser = arena_push_struct(arena, BEN_parser);
+    parser->arena = arena;
+    parser->data = NULL;
+    parser->size = 0;
+    parser->cursor = 0;
+    parser->err = 0;
+
+    parser->size = len;
+
+    parser->data = arena_push_array(arena, unsigned char, len);
+    memcpy(parser->data, data, len);
+
+    return parser;
+}
+
+BEN_value *BEN_decode_file(Arena *arena, const char *file_path)
+{
+    BEN_parser *parser = BEN_init_parser_from_file(arena, file_path);
+    if (parser->err != 0)
+        return NULL;
+
+    BEN_value *value = parse_value(parser);
+    if (parser->err != 0)
+        return NULL;
+
+    return value;
+}
+
+BEN_value *BEN_decode_buffer(Arena *arena, const unsigned char *data, size_t len)
+{
+    BEN_parser *parser = BEN_init_parser_from_buffer(arena, data, len);
+    if (parser->err != 0)
+        return NULL;
+
+    BEN_value *value = parse_value(parser);
+    if (parser->err != 0)
+        return NULL;
+
+    return value;
 }
 
 BEN_value *parse_dict(BEN_parser *parser)
@@ -64,6 +108,7 @@ BEN_value *parse_dict(BEN_parser *parser)
 
     if (consume(parser) != 'd')
     {
+        parser->err = -1;
         return NULL;
     }
 
@@ -74,7 +119,10 @@ BEN_value *parse_dict(BEN_parser *parser)
         tmp_pair->value = parse_value(parser);
         tmp_pair->next  = NULL;
         if (!tmp_pair->value)
+        {
+            parser->err = -1;
             return NULL;
+        }
 
         if (last)
             last->next        = tmp_pair;
@@ -85,6 +133,7 @@ BEN_value *parse_dict(BEN_parser *parser)
     }
     if (consume(parser) != 'e')
     {
+        parser->err = -1;
         return NULL;
     }
     return return_dict;
@@ -106,9 +155,38 @@ BEN_value *parse_num(BEN_parser *parser)
     char *end;
     BEN_value *return_val = arena_push_struct(parser->arena, BEN_value);
 
-    consume(parser); //consume i
-    num = BEN_strtol(parser, &end);
-    
+    if (consume(parser) != 'i')   
+    {
+        parser->err =-1;
+        return NULL;
+    }
+
+    size_t sign_start = parser->cursor;
+    bool negative = (parser->cursor < parser->size && parser->data[parser->cursor] == '-');
+    size_t digit_start = sign_start + (negative ? 1 : 0);
+
+    num = strtol((char *) parser->data + parser->cursor, &end, 10);
+
+    if (end == (char *)parser->data + parser->cursor)
+    {
+        parser->err = -1;
+        return NULL;
+    }
+
+    size_t digit_count = end - ((char *)parser->data + digit_start);
+
+    if (digit_count > 1 && parser->data[digit_start] == '0')
+    {
+        parser->err = -1;
+        return NULL;
+    }
+
+    if (negative && num == 0)
+    {
+        parser->err = -1;
+        return NULL;
+    }
+
     return_val->type = BENCODE_NUMBER;
     return_val->number = num;
 
@@ -116,6 +194,7 @@ BEN_value *parse_num(BEN_parser *parser)
 
     if (consume(parser) != 'e')
     {
+        parser->err = -1;
         return NULL;
     }
     
@@ -132,12 +211,19 @@ BEN_value *parse_list(BEN_parser *parser)
     return_val->type = BENCODE_LIST;
     return_val->list = NULL;
 
-    consume(parser); //consume l
+    if (consume(parser) != 'l')
+    {
+        parser->err = -1;
+        return NULL;
+    }
     while(peek(parser) != 'e' && parser->err == 0)
     {
         val = parse_value(parser);
         if (!val)
+        {
+            parser->err = -1;
             return NULL;
+        }
 
         tmp_list = arena_push_struct(parser->arena, BEN_list);
         tmp_list->value = val;
@@ -153,6 +239,7 @@ BEN_value *parse_list(BEN_parser *parser)
 
     if (consume(parser) != 'e')
     {
+        parser->err = -1;
         return NULL;
     }
 
@@ -163,7 +250,7 @@ unsigned char peek(BEN_parser *parser)
 {
     if (parser->cursor >= parser->size)
     {
-        parser->err = 1;
+        parser->err = -1;
         return 0;
     }
     return parser->data[parser->cursor];
@@ -173,7 +260,7 @@ unsigned char consume(BEN_parser *parser)
 {
     if (parser->cursor >= parser->size)
     {
-        parser->err = 1;
+        parser->err = -1;
         return 0;
     }
      return parser->data[parser->cursor++]; 
@@ -183,18 +270,26 @@ unsigned char consume(BEN_parser *parser)
 BEN_string parse_raw_string(BEN_parser *parser)
 {
     char *delimiter;
-    BEN_string raw_str;
+    BEN_string raw_str = {0};
+    size_t digit_start = parser->cursor;
 
     long length = BEN_strtol(parser, &delimiter); 
     if (length < 0 || delimiter == (char *)parser->data + parser->cursor)
     {
-        parser->err = 1;
+        parser->err = -1;
+        return raw_str;
+    }
+
+    size_t digit_count = delimiter - ((char *)parser->data + digit_start);
+    if (digit_count > 1 && parser->data[digit_start] == '0')
+    {
+        parser->err = -1;
         return raw_str;
     }
 
     if (parser->cursor + (size_t)length > parser->size)
     {
-        parser->err = 1;
+        parser->err = -1;
         return raw_str;
     }
 
@@ -202,7 +297,7 @@ BEN_string parse_raw_string(BEN_parser *parser)
 
     if (consume(parser) != ':')
     {
-        parser->err = 1;
+        parser->err = -1;
         return raw_str;
     }
 
@@ -225,7 +320,7 @@ BEN_value *parse_value(BEN_parser *parser)
                   return parse_string(parser);
 
         default:      
-                  parser->err = 1;
+                  parser->err = -1;
                   return NULL;    
     }
 }
@@ -260,7 +355,7 @@ BEN_value *BEN_get_value_by_key(const BEN_pair *pairs, const char *key)
     return NULL;
 }
 
-static long BEN_strtol(BEN_parser *parser, char **end_out)
+long BEN_strtol(BEN_parser *parser, char **end_out)
 {
     size_t i = parser->cursor;
     size_t digit_start;
@@ -363,14 +458,17 @@ int  BEN_get_value_length(BEN_value *value)
 
 int increment_by_str(BEN_string *str, int *length)
 {
-    if (str->length <= 0)
-        return -1;
     size_t n = str->length;
     int digits = 0;
-    while (n > 0)
+    if (n == 0)
+        digits = 1;
+    else 
     {
-        digits++;
-        n /= 10;
+        while (n > 0)
+        {
+            digits++;
+            n /= 10;
+        }
     }
     *length += digits;
     *length += 1; //delimiter
@@ -424,10 +522,15 @@ int increment_by_number(int64_t *value, int *length)
     *length += 2; //i and e 
     int64_t n = llabs(*value);
     int digits = 0;
-    while (n > 0)
+    if (n == 0)
+        digits = 1;
+    else 
     {
-        digits++;
-        n /= 10;
+        while (n > 0)
+        {
+            digits++;
+            n /= 10;
+        }
     }
     *length += digits;
 
@@ -474,7 +577,7 @@ int fill_in_str(BEN_writer *writer, BEN_string *str)
     writer->cursor += bytes_written;
 
     writer->data[writer->cursor++] = ':';
-    for (int i = 0; i < str->length && writer->cursor < writer->size; i++)
+    for (size_t i = 0; i < str->length && writer->cursor < writer->size; i++)
     {
         writer->data[writer->cursor++] = str->data[i];
     }
@@ -531,15 +634,48 @@ int fill_in_list(BEN_writer *writer, BEN_list *value)
 
 int fill_in_number(BEN_writer *writer, int64_t *value)
 {
+    
+    if (writer->cursor >= writer->size)
+        return -1;
+
     writer->data[writer->cursor++] = 'i';
 
     int bytes_written = snprintf((char *)writer->data + writer->cursor,
-        sizeof(writer->data) - writer->cursor, "%ld", *value);
+        writer->size - writer->cursor, "%ld", *value);
 
     if (bytes_written < 0 || bytes_written + writer->cursor > writer->size)
         return -1;
     writer->cursor += bytes_written;
 
+    if (writer->cursor >= writer->size)
+        return -1;
+
     writer->data[writer->cursor++] = 'e';
     return 0;
+}
+
+int BEN_encode_to_file(Arena *arena, BEN_value *value, const char *file_path)
+{
+    BEN_writer *writer = BEN_init_writer(arena, value);
+    if (writer->err != 0)
+        return -1;
+    if (BEN_write_file(writer, file_path) != 0)
+        return -1;
+
+    return 0;
+}
+const unsigned char *BEN_encode_to_buffer(Arena *arena, BEN_value *value, size_t *out_len)
+{
+    BEN_writer *writer = BEN_init_writer(arena, value);
+    if (writer->err != 0)
+    {
+        if (out_len)
+            *out_len = 0;
+        return NULL;
+    }
+    
+    if (out_len)
+        *out_len = writer->size;
+
+    return writer->data;
 }

@@ -65,16 +65,20 @@ typedef struct {
 } BEN_writer;
 
 //parser init
-BEN_parser *BEN_init_parser(Arena *arena, const char *file_path);
+BEN_parser *BEN_init_parser_from_file(Arena *arena, const char *file_path);
+BEN_parser *BEN_init_parser_from_buffer(Arena *arena, const unsigned char *data, size_t len);
+
 BEN_writer *BEN_init_writer(Arena *arena, BEN_value *value);
 
+BEN_value *BEN_decode_file(Arena *arena, const char *file_path);
+BEN_value *BEN_decode_buffer(Arena *arena, const unsigned char *data, size_t len);
 
 //parser main interface
 unsigned char peek(BEN_parser *parser);
 unsigned char consume(BEN_parser *parser);
 
 //parser helper funcs
-static long BEN_strtol(BEN_parser *parser, char **end_out);
+long BEN_strtol(BEN_parser *parser, char **end_out);
 
 
 //parsing action
@@ -93,9 +97,10 @@ char *BEN_string_to_C_string(Arena *arena, const BEN_string *b_string);
 bool BEN_string_equals(const BEN_string *b_key, const char *key);
 
 //writing BEN file
-int BEN_encode_data(BEN_writer *writer, const char *fp);
-int  BEN_get_value_length(BEN_value *value);
+int BEN_get_value_length(BEN_value *value);
 int BEN_write_file(BEN_writer *writer, const char *fp);
+int BEN_encode_to_file(Arena *arena, BEN_value *value, const char *file_path);
+const unsigned char *BEN_encode_to_buffer(Arena *arena, BEN_value *value, size_t *out_len);
 
 //helper funcs to fill in data inside BEN_writer
 int increment_by_str(BEN_string *str, int *length);
