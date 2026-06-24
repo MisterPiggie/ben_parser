@@ -18,7 +18,7 @@ BEN_value  *BEN_decode_file(Arena *arena, const char *file_path);
 ```
 ### Encoding
  
-```
+```c
 BEN_writer          *BEN_init_writer(Arena *arena, BEN_value *value);
 int                 BEN_write_file(BEN_writer *writer, const char *file_path);
 int                 BEN_encode_to_file(Arena *arena, BEN_value *value, const char *file_path);
@@ -27,7 +27,7 @@ const unsigned char *BEN_encode_to_buffer(Arena *arena, BEN_value *value, size_t
  
 ### Working with decoded values
  
-```
+```c
 BEN_value *BEN_get_value_by_key(const BEN_pair *pairs, const char *key);
 bool       BEN_string_equals(const BEN_string *b_key, const char *key);
 char      *BEN_string_to_C_string(Arena *arena, const BEN_string *b_string);
@@ -35,7 +35,7 @@ char      *BEN_string_to_C_string(Arena *arena, const BEN_string *b_string);
  
 ### Types
  
-```
+```c
 typedef enum {
     BENCODE_STRING,
     BENCODE_NUMBER,
@@ -61,7 +61,7 @@ struct BEN_value {
 
 ## Quick usage
  
-```
+```c
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 #include "ben.h"
@@ -100,7 +100,7 @@ int main(void) {
 
 **Decoding, manually:**
  
-```
+```c
 BEN_parser *parser = BEN_init_parser_from_buffer(&arena, data, len);
 if (parser->err) {
     // failed before parsing even started — e.g. underlying file read failed
@@ -119,7 +119,7 @@ This is exactly what `BEN_decode_buffer` does internally — constructing the pa
  
 **Encoding, manually:**
  
-```
+```c
 BEN_writer *writer = BEN_init_writer(&arena, value);
 if (writer->err) {
     // value couldn't be encoded — e.g. an unrecognized BEN_type
