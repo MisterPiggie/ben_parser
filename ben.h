@@ -82,7 +82,7 @@ long BEN_strtol(BEN_parser *parser, char **end_out);
 
 
 //parsing action
-BEN_value *parse_value(BEN_parser *parser);
+BEN_value *BEN_parse(BEN_parser *parser);
 
 BEN_value *parse_dict(BEN_parser *parser);
 BEN_value *parse_num(BEN_parser *parser);

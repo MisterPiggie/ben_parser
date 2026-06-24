@@ -76,7 +76,7 @@ BEN_value *BEN_decode_file(Arena *arena, const char *file_path)
     if (parser->err != 0)
         return NULL;
 
-    BEN_value *value = parse_value(parser);
+    BEN_value *value = BEN_parse(parser);
     if (parser->err != 0)
         return NULL;
 
@@ -89,7 +89,7 @@ BEN_value *BEN_decode_buffer(Arena *arena, const unsigned char *data, size_t len
     if (parser->err != 0)
         return NULL;
 
-    BEN_value *value = parse_value(parser);
+    BEN_value *value = BEN_parse(parser);
     if (parser->err != 0)
         return NULL;
 
@@ -116,7 +116,7 @@ BEN_value *parse_dict(BEN_parser *parser)
     {
         tmp_pair        = arena_push_struct(parser->arena, BEN_pair);
         tmp_pair->key   = parse_raw_string(parser);
-        tmp_pair->value = parse_value(parser);
+        tmp_pair->value = BEN_parse(parser);
         tmp_pair->next  = NULL;
         if (!tmp_pair->value)
         {
@@ -218,7 +218,7 @@ BEN_value *parse_list(BEN_parser *parser)
     }
     while(peek(parser) != 'e' && parser->err == 0)
     {
-        val = parse_value(parser);
+        val = BEN_parse(parser);
         if (!val)
         {
             parser->err = -1;
