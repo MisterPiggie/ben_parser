@@ -10,7 +10,7 @@ Allocation is arena-based, and the arena is borrowed, not owned. Every parse and
 
 ### Decoding
  
-```
+```c
 BEN_parser *BEN_init_parser_from_buffer(Arena *arena, const unsigned char *data, size_t len);
 BEN_parser *BEN_init_parser_from_file(Arena *arena, const char *file_path);
 BEN_value  *BEN_decode_buffer(Arena *arena, const unsigned char *data, size_t len);
